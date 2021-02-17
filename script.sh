@@ -26,31 +26,30 @@ echo $result;
 
 inotifywait -m $source_dir -e close_write | # we define that a new file was added to the folder, which was closed after writing data
     while read dir action file; do
+        echo "------------------------------------------------------------------------------------------------------------------------" >> $log
         echo "$(date +%d.%m.%Y\ %T). The file '$dir$file' appeared in via '$action'." >> $log
-        # echo "file name =$file" >> $log
-        for dest in "${dest_folders[@]}"; do
-            if [ -d "$dest" ]; #check if destination directory exists 
-                then
+        archiveExists=$(checkArchiveLogFile $file)
 
-                    archiveExists=$(checkArchiveLogFile $file)
-                    # echo $archiveExists >> $log
-                    # if in system view v$archived_log have $file
-                    if [ "$archiveExists" -gt "0" ]
+        if [ "$archiveExists" -gt "0" ]  #if in system view v$archived_log have $file
+            then
+                echo "$(date +%d.%m.%Y\ %T). System view v\$archived_log have $archiveExists rows with archived log file '$file'. Start copying to destination folders:" >> $log
+                for dest in "${dest_folders[@]}"; do
+                    if [ -d "$dest" ]; #check if destination directory exists 
                         then
-                            echo "$(date +%d.%m.%Y\ %T). $file have $archiveExists rows in v\$archived_log view." >> $log
                             rsync -z -c "$dir$file" $dest #copy with checksum verification for files
                             if [ "$?" -eq "0" ]
                                 then
-                                    echo "DONE: $(date +%d.%m.%Y\ %T). Copied file $dir$file to $dest." >> $log
+                                    echo "    DONE:$(date +%d.%m.%Y\ %T). Copied file '$file' to '$dest'." >> $log
                                 else
-                                    echo "ERROR: $(date +%d.%m.%Y\ %T). Error while running rsync. File - '$dir$file'." >> $log
-                            fi                                    
+                                    echo "    ERROR:$(date +%d.%m.%Y\ %T). Error while running rsync. File - '$dir$file', destination folder - '$dest'." >> $log
+                            fi                         
+                                         
                         else
-                            echo "!!! $(date +%d.%m.%Y\ %T). View v\$archived_log dont have '$file'." >> $log        
-                    fi                         
-                                 
-                else
-                    echo "ERROR: $(date +%d.%m.%Y\ %T). $dest not found. Can not continue." >> $log
-            fi
-        done       
+                            echo "    ERROR:$(date +%d.%m.%Y\ %T). The folder '$dest' not found. Can not be copy file '$file'." >> $log
+                    fi
+                done                                   
+            else
+                echo "!!! $(date +%d.%m.%Y\ %T). System view v\$archived_log have $archiveExists rows with archived log file '$file'. Do not copy files." >> $log 
+        fi
+        echo "------------------------------------------------------------------------------------------------------------------------" >> $log      
     done
