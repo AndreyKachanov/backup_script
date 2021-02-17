@@ -1,11 +1,10 @@
 #!/bin/bash
 source_dir=/oracle/backup/arch/
+# source_dir=/oracle/temp/original/
 
 #Array of destination folders
 dest_folders=(
 "/oracle/temp/destination1/"
-"/oracle/temp/destination2/"
-"/oracle/temp/destination111s/"
 )
 
 log=/oracle/temp/rsync_watch.log
@@ -29,7 +28,11 @@ inotifywait -m $source_dir -e close_write | # we define that a new file was adde
     while read dir action file; do
         echo "$file" >> $log
         echo " " >> $log
-        echo "$(date +%d.%m.%Y\ %T). The file '$dir$file' appeared in via '$action'." >> $log
+        
+        fileSizeMb=$(ls -l --block-size=MB "$dir$file" | awk '{print $5}')
+        fileSizeKb=$(ls -l --block-size=K "$dir$file" | awk '{print $5}')
+        
+        echo "$(date +%d.%m.%Y\ %T). The file '$dir$file' appeared in via '$action'. Size - $fileSizeMb, $fileSizeKb." >> $log
         archiveExists=$(checkArchiveLogFile $file)
 
         if [ "$archiveExists" -gt "0" ]  #if in system view v$archived_log have $file
