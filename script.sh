@@ -1,6 +1,6 @@
 #!/bin/bash
-#source_dir=/oracle/backup/arch/
-source_dir=/oracle/temp/original/
+source_dir=/oracle/backup/arch/
+#source_dir=/oracle/temp/original/
 
 #Array of destination folders
 dest_folders=(
@@ -55,8 +55,10 @@ inotifywait -m $source_dir -e close_write | # we define that a new file was adde
                         then
                             if [ ! -f "$dest$file" ] #если в папке назначения нет этого файла
                                 then
+                                    echo "В папке '$dest$file' файла '$file' нет. Копируем." >> $log
                                     rsyncCopy $dir $file $dest                                   
                                 else #если в папке назначения файл уже есть
+                                    echo "В папке '$dest$file' файл '$file' уже есть. Проверяем md5sum нового '$dir$file' и '$dest$file' файлов." >> $log
                                     md5sumOldFile=$(md5sum "$dest$file" | awk '{ print $1 }')
                                     if [ "$md5sumNewFile" -ne "md5sumOldFile" ] #если md5 суммы разные - копируем файл в папку
                                         then
