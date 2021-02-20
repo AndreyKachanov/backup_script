@@ -1,10 +1,12 @@
 #!/bin/bash
 source_dir=/oracle/backup/arch/
-#source_dir=/oracle/temp/original/
+# source_dir=/oracle/temp/original/
 
 #Array of destination folders
 dest_folders=(
-"/oracle/temp/destination1/"
+"/storeonce/reyestr/arch/"
+"/backup/arch/"
+"/nbackup/reyestr-backup/arch/"
 )
 
 log=/oracle/temp/rsync_watch.log
@@ -53,30 +55,23 @@ inotifywait -m $source_dir -e close_write | # we define that a new file was adde
                 for dest in "${dest_folders[@]}"; do
                     if [ -d "$dest" ]; #check if destination directory exists 
                         then
-                            if [ ! -f "$dest$file" ] #если в папке назначения нет этого файла
+                            if [ ! -f "$dest$file" ] #если в папке назначения нет этого файла/
+                                если sequence нового файла >= sequencу последнего файла в v$archived_log, тогда копируем файл
+                                иначе ничего не делаем - оракл просто открывает старый журнал и что-то в нём делает  
                                 then
                                     echo "В папке '$dest$file' файла '$file' нет. Копируем." >> $log
                                     rsyncCopy $dir $file $dest                                   
                                 else #если в папке назначения файл уже есть
                                     echo "В папке '$dest$file' файл '$file' уже есть. Проверяем md5sum нового '$dir$file' и '$dest$file' файлов." >> $log
                                     md5sumOldFile=$(md5sum "$dest$file" | awk '{ print $1 }')
-                                    if [ "$md5sumNewFile" -ne "md5sumOldFile" ] #если md5 суммы разные - копируем файл в папку
+                                    if [ "$md5sumNewFile" != "$md5sumOldFile" ] #если md5 суммы разные - копируем файл в папку
                                         then
-                                            echo "$(date +%d.%m.%Y\ %T). Md5 summ new file '$dir$file' - '$md5sumNewFile' != md5 summ old file '$dest$file'- '$md5sumOldFile'. Copy file." >> $log
+                                            echo "$(date +%d.%m.%Y\ %T). Md5 summ new file '$dir$file' - '$md5sumNewFile' != md5 summ old file '$dest$file'-'$md5sumOldFile'. Copy file." >> $log
                                             rsyncCopy $dir $file $dest
                                         else
-                                            echo "$(date +%d.%m.%Y\ %T). Md5 summ new file '$dir$file' - '$md5sumNewFile' == md5 summ old file '$dest$file'- '$md5sumOldFile'. Do not copy file." >> $log
+                                            echo "$(date +%d.%m.%Y\ %T). Md5 summ new file '$dir$file' - '$md5sumNewFile' == md5 summ old file '$dest$file'-'$md5sumOldFile'. Do not copy file." >> $log
                                     fi   
-                            fi
-
-                            # если в новой папке нет такого файла
-                            #     then
-                            #         копируем файл в папку
-                            #     else
-                            #         если md5 нового файла != md5 файла в папке
-                            #             then
-                            #                 копируем новый файл в папку.                       
-                                         
+                            fi                                
                         else
                             echo "    ERROR:$(date +%d.%m.%Y\ %T). The folder '$dest' not found. Can not be copy file '$file'." >> $log
                     fi
