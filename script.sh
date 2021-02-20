@@ -11,7 +11,10 @@ dest_folders=(
 
 log=/oracle/temp/rsync_watch.log
 
-
+# Фунция проверяет, является ли "измененный" архивный журнал в папке source_dir самым последним в v$archived_log.
+# Ищу добавленный файл в списке v$archived_log и проверяю его дату добавления (stamp), 
+# чтобы эта дата была равной или была самой наибольшей из всех журналов в v$archived_log. 
+# Проверку сделал после того, как в папку /backup/arch/ начали копироваться старые журналы, который оракл почему-то начал открывать и закрывать на запись. 
 function checkArchiveLogFileInView {
 result=$(sqlplus -s /nolog <<EOL
 connect / as sysdba
@@ -19,7 +22,7 @@ set head off
 set feedback off
 set pagesize 2400
 set linesize 2048
-select count(*) from v\$archived_log where name like '%$1';
+select count(*) from v\$archived_log where name like '%$1' and stamp >= (select max(stamp) from v\$archived_log);
 exit;
 EOL
 )
@@ -30,7 +33,7 @@ function rsyncCopy {
     rsync -z -c "$1$2" $3 #копируем файл в эту папку
     if [ "$?" -eq "0" ]
         then
-            echo "    DONE:$(date +%d.%m.%Y\ %T). Copied file '$2' to '$3'." >> $log
+            echo "    DONE:$(date +%d.%m.%Y\ %T). Файл '$2' скопирован в папку'$3'." >> $log
         else
             echo "    ERROR:$(date +%d.%m.%Y\ %T). Error while running rsync. File - '$1$2', destination folder - '$3'." >> $log
     fi 
@@ -45,39 +48,37 @@ inotifywait -m $source_dir -e close_write | # we define that a new file was adde
         fileSizeBytes=$(ls -l "$dir$file" | awk '{print $5}')
         md5sumNewFile=$(md5sum "$dir$file" | awk '{ print $1 }')
         
-        echo "$(date +%d.%m.%Y\ %T). The file '$dir$file' appeared in via '$action'. Size - $fileSizeMb, $fileSizeBytes byte, Md5 checksum - $md5sumNewFile." >> $log
+        echo "$(date +%d.%m.%Y\ %T). Файл '$dir$file' появился с помощью действия '$action'. Размер - $fileSizeMb, $fileSizeBytes byte, Md5 checksum - $md5sumNewFile." >> $log
 
         courtRowsInView=$(checkArchiveLogFileInView $file)
 
         if [ "$courtRowsInView" -gt "0" ]  #if in system view v$archived_log have $file
             then
-                echo "System view v\$archived_log have $courtRowsInView rows with archived log file '$file'. Start copying to destination folders:" >> $log
+                echo "Проверка файла '$file' в v\$archived_log. Кол-во записей = $courtRowsInView. Начинаем копирование по папкам:" >> $log
                 for dest in "${dest_folders[@]}"; do
                     if [ -d "$dest" ]; #check if destination directory exists 
                         then
-                            if [ ! -f "$dest$file" ] #если в папке назначения нет этого файла/
-                                если sequence нового файла >= sequencу последнего файла в v$archived_log, тогда копируем файл
-                                иначе ничего не делаем - оракл просто открывает старый журнал и что-то в нём делает  
+                            if [ ! -f "$dest$file" ] #если в папке назначения нет этого файла/ 
                                 then
-                                    echo "В папке '$dest$file' файла '$file' нет. Копируем." >> $log
+                                    echo "В папке '$dest' файла '$file' нет. Начинаем копирование." >> $log
                                     rsyncCopy $dir $file $dest                                   
                                 else #если в папке назначения файл уже есть
-                                    echo "В папке '$dest$file' файл '$file' уже есть. Проверяем md5sum нового '$dir$file' и '$dest$file' файлов." >> $log
+                                    echo "В папке '$dest' файл '$file' уже есть. Проверка Md5sum файлов:" >> $log
                                     md5sumOldFile=$(md5sum "$dest$file" | awk '{ print $1 }')
                                     if [ "$md5sumNewFile" != "$md5sumOldFile" ] #если md5 суммы разные - копируем файл в папку
                                         then
-                                            echo "$(date +%d.%m.%Y\ %T). Md5 summ new file '$dir$file' - '$md5sumNewFile' != md5 summ old file '$dest$file'-'$md5sumOldFile'. Copy file." >> $log
+                                            echo "    Md5sum '$dir$file' - '$md5sumNewFile' != md5sum '$dest$file' - '$md5sumOldFile'. Файл копируем." >> $log
                                             rsyncCopy $dir $file $dest
                                         else
-                                            echo "$(date +%d.%m.%Y\ %T). Md5 summ new file '$dir$file' - '$md5sumNewFile' == md5 summ old file '$dest$file'-'$md5sumOldFile'. Do not copy file." >> $log
+                                            echo "    Md5sum '$dir$file' - '$md5sumNewFile' == md5sum '$dest$file' - '$md5sumOldFile'. Файл не копируем." >> $log
                                     fi   
                             fi                                
                         else
-                            echo "    ERROR:$(date +%d.%m.%Y\ %T). The folder '$dest' not found. Can not be copy file '$file'." >> $log
+                            echo "    ERROR: Папки '$dest' нет. Файл '$file' не скопирован." >> $log
                     fi
                 done                                   
             else
-                echo "!!! $(date +%d.%m.%Y\ %T). System view v\$archived_log have $courtRowsInView rows with archived log file '$file'. Do not copy files." >> $log 
+                echo "Проверка файла '$file' в v\$archived_log. Кол-во записей = $courtRowsInView. Файл не копируем." >> $log 
         fi
         echo "------------------------------------------------------------------------------------------------------------------------" >> $log      
     done
