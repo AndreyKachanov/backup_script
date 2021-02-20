@@ -9,7 +9,14 @@ dest_folders=(
 "/nbackup/reyestr-backup/arch/"
 )
 
-log=/oracle/temp/rsync_watch.log
+# dest_folders=(
+# "/oracle/temp/destination1/"
+# "/oracle/temp/destination2/"
+# "/oracle/temp/destination3/"
+# )
+
+# log=/oracle/temp/watch_rsync.log
+log=/oracle/script/watch_rsync.log
 
 # Фунция проверяет, является ли "измененный" архивный журнал в папке source_dir самым последним в v$archived_log.
 # Ищу добавленный файл в списке v$archived_log и проверяю его дату добавления (stamp), 
@@ -42,7 +49,7 @@ function rsyncCopy {
 inotifywait -m $source_dir -e close_write | # we define that a new file was added to the folder, which was closed after writing data
     while read dir action file; do
         echo "$file" >> $log
-        echo " " >> $log
+        # echo " " >> $log
         
         fileSizeMb=$(ls -l --block-size=MB "$dir$file" | awk '{print $5}')
         fileSizeBytes=$(ls -l "$dir$file" | awk '{print $5}')
@@ -54,7 +61,7 @@ inotifywait -m $source_dir -e close_write | # we define that a new file was adde
 
         if [ "$courtRowsInView" -gt "0" ]  #if in system view v$archived_log have $file
             then
-                echo "Проверка файла '$file' в v\$archived_log. Кол-во записей = $courtRowsInView. Начинаем копирование по папкам:" >> $log
+                echo "Проверка файла '$file' в v\$archived_log. Кол-во записей = $courtRowsInView. Stamp файла является наивысшим, т.е. журнал самый последний, свежий. Начинаем копирование по папкам:" >> $log
                 for dest in "${dest_folders[@]}"; do
                     if [ -d "$dest" ]; #check if destination directory exists 
                         then
@@ -78,7 +85,7 @@ inotifywait -m $source_dir -e close_write | # we define that a new file was adde
                     fi
                 done                                   
             else
-                echo "Проверка файла '$file' в v\$archived_log. Кол-во записей = $courtRowsInView. Файл не копируем." >> $log 
+                echo "Проверка файла '$file' в v\$archived_log. Кол-во записей = $courtRowsInView. Журнал не свежий - файл не последний в списке. Не копируем." >> $log 
         fi
         echo "------------------------------------------------------------------------------------------------------------------------" >> $log      
     done
